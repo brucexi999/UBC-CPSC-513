@@ -1,0 +1,13 @@
+Checked properties
+I added three invariants corresponding to Rule 1, 2, and 3 listed below and also in the paper.
+
+Rule 1. At all times, each block has exactly T tokens in the system, one of which is the owner token.
+Rule 2. A processor can write a block only if it holds all T tokens for that block.
+Rule 3. A processor can read a block only if it holds at least one token for that block and has valid data.
+
+Bugs
+In Rule "Processor gets Tokens without Data" and "Processor gets Tokens without Data", after getting the tokens, the state of the processor is not updated correctly. My fix checks the resultant tokens and update the state according to the following rule as stated in the paper:
+
+All T tokens implies M, 1 to T-1 tokens (including the owner token) implies O, 1 to T-1 tokens (excluding the owner token) implies S, and no tokens implies I. 
+
+In Rule "Processor gets ReqS", the processor always sends 1 token and it's not the owner token. However, if the processor is in the O state and has only 1 token, then it must send out the owner token. My fix considers this case and also updated the resultant token count and state.

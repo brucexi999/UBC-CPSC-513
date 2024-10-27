@@ -1,0 +1,31 @@
+The number of reachable states and iterations depend on the choice of benchmarks. The results of some are listed below.
+
+s27
+Convergence on iteration 3.
+Size of reachable state BDD:  3.
+Number of reachable states:  6.
+
+s386
+Convergence on iteration 8.
+Size of reachable state BDD:  11.
+Number of reachable states:  13.
+
+s400
+Convergence on iteration 151.
+Size of reachable state BDD:  194.
+Number of reachable states:  8865.
+
+s444
+Convergence on iteration 151.
+Size of reachable state BDD:  126.
+Number of reachable states:  8865.
+
+s510
+Convergence on iteration 47.
+Size of reachable state BDD:  7.
+Number of reachable states:  47.
+
+s526
+Convergence on iteration 151.
+Size of reachable state BDD:  159.
+Number of reachable states:  8868.

@@ -1,0 +1,13 @@
+[options]
+mode prove
+multiclock on
+
+[engines]
+smtbmc
+
+[script]
+read -formal async_fifo.sv
+prep -top ASYNC_FIFO
+
+[files]
+async_fifo.sv

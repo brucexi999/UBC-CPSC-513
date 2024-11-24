@@ -132,7 +132,7 @@ module ASYNC_FIFO #(
         // Initially, assume both resets are asserted
         initial assume(!wrstn);
         initial assume(!rrstn);
-        //initial assume(rrstn == wrstn);
+        initial assume(rrstn == wrstn);
         // Assume the two resets are asserted simultaneously
         always@($global_clock) begin
             assume($fell(wrstn) == $fell(rrstn));
@@ -158,35 +158,35 @@ module ASYNC_FIFO #(
         not ture. If wrstn is deasserted prior than rrstn, then while rrstn is low, 
         the write pointer may have already incremented.
         */
-        //always@($global_clock) begin
-        //    if(!wrstn) begin
-        //        assert(rptr == 0);
-        //    end
-        //end
+        always@($global_clock) begin
+            if(!wrstn) begin
+                a25: assert(rptr == 0);
+            end
+        end
 
         always@(*) begin
             // If past_valid_w is low, we treat it as reset
             if(!past_valid_w || !wrstn) begin  
                 assume(!wen);
-                assert(!full);
-                assert(wptr == 0);
-                assert(wptr_gray == 0);
-                assert(rptr_gray_sync1 == 0);
-                assert(rptr_gray_sync2 == 0);
+                a0: assert(!full);
+                a1: assert(wptr == 0);
+                a2: assert(wptr_gray == 0);
+                a3: assert(rptr_gray_sync1 == 0);
+                a4: assert(rptr_gray_sync2 == 0);
                 // These are signals in the read clock domain, refer to the comment
                 // section above
-                assert(wptr_gray_sync1 == 0);
-                assert(wptr_gray_sync2 == 0);
-                assert(rptr == 0);
-                assert(empty);
+                a5: assert(wptr_gray_sync1 == 0);
+                a6: assert(wptr_gray_sync2 == 0);
+                a7: assert(rptr == 0);
+                a8: assert(empty);
             end
 
             if(!past_valid_r || !rrstn) begin
                 assume(!ren);
-                assert(rptr == 0);
-                assert(rptr_gray == 0);
-                assert(wptr_gray_sync1 == 0);
-                assert(wptr_gray_sync2 == 0);
+                a9: assert(rptr == 0);
+                a10: assert(rptr_gray == 0);
+                a11: assert(wptr_gray_sync1 == 0);
+                a12: assert(wptr_gray_sync2 == 0);
             end
 
         end
@@ -197,14 +197,14 @@ module ASYNC_FIFO #(
                 if(!$rose(wclk)) begin
                     assume($stable(wen));
                     assume($stable(wdata));
-                    assert($stable(full) || !wrstn);  // Async reset
+                    a13: assert($stable(full) || !wrstn);  // Async reset
                 end
 
                 if(!$rose(rclk)) begin
                     assume($stable(ren));
                     // If the async reset comes in, then it must be empty
-                    assert(empty || $stable(rdata));  
-                    assert($stable(empty) || !rrstn);
+                    a14: assert(empty || $stable(rdata));  
+                    a15: assert($stable(empty) || !rrstn);
                 end
             end
         end
@@ -213,47 +213,47 @@ module ASYNC_FIFO #(
         logic [PTR_WIDTH-1:0] num_entry;  // Number of valid entries in the FIFO
         assign num_entry = wptr - rptr;
 
-        initial assert(num_entry == 0);
+        initial a16: assert(num_entry == 0);
         always@(*) begin
-            assert(num_entry <= DEPTH);
+            a17: assert(num_entry <= DEPTH);
         end
 
         always@(*) begin
             if (num_entry == DEPTH) begin
-                assert(full);
+                a18: assert(full);
             end
             if (num_entry == 0) begin
-                assert(empty);
+                a19: assert(empty);
             end
         end
 
         always@(*) begin
-            assert(wptr_gray == (wptr>>1)^wptr);
-            assert(rptr_gray == (rptr>>1)^rptr);
+            a20: assert(wptr_gray == wptr ^ (wptr>>1));
+            a21: assert(rptr_gray == rptr ^ (rptr>>1));
         end
 
         // Never full and empty at the same time
         always@(*) begin
-            assert(!(full && empty));
+            a22: assert(!(full && empty));
         end
 
         //  No overflow
         always@($global_clock) begin
             if($past(num_entry) == DEPTH && $past(wen) && past_valid_glb) begin
-                assert(wptr == $past(wptr) || !wrstn);
+                a23: assert(wptr == $past(wptr) || !wrstn);
             end
         end
 
         // No underflow
         always@($global_clock) begin
             if($past(num_entry) == 0 && $past(ren) && past_valid_glb) begin
-                assert(rptr == $past(rptr) || !rrstn);
+                a24: assert(rptr == $past(rptr) || !rrstn);
             end
         end
 
         //=================================== W/R =====================================
-        (* anyconst *) logic [PTR_WIDTH-2:0] first_addr;
-        logic [PTR_WIDTH-2:0] second_addr;
+        /*(* anyconst *) logic [PTR_WIDTH-1:0] first_addr;
+        logic [PTR_WIDTH-1:0] second_addr;
         assign second_addr = first_addr + 1;
 
         (* anyconst *) logic [WIDTH-1:0] first_data;
@@ -288,7 +288,68 @@ module ASYNC_FIFO #(
             end 
         end
 
+        logic first_in_fifo, second_in_fifo, both_in_fifo;
+        // For the first data to be in the FIFO, its address must be valid and its value
+        // must match the data in the FIFO's mem at that address
+        assign first_in_fifo = first_addr_valid && (mem[first_addr[PTR_WIDTH-2:0]] == first_data);
+        assign second_in_fifo = second_addr_valid && (mem[second_addr[PTR_WIDTH-2:0]] == second_data);
+        assign both_in_fifo = first_in_fifo && second_in_fifo;
 
+        /*
+        If both data are in the FIFO, then the FIFO can remain in that state indefinitely, 
+        or alternatively a read request can read the first data from the FIFO. Then, the 
+        FIFO can wait with the second value in memory indefinitely or it can be read out
+        */
+
+        //logic wait_first_read, wait_second_read, read_first, read_second;
+        
+        /* 
+        Intuitively, if both data are in the FIFO, then it shouldn't be empty. However,
+        this can happen becuase it takes two extre read cycles for the write pointer to 
+        travel to the read domain and produce the empty flag. During this time, there 
+        could be data being written in the write domain.
+        */
+        /*assign wait_first_read = both_in_fifo && (!ren || rptr != first_addr || empty);
+        assign read_first = ren && (rdata == first_data) && !empty && rptr == first_addr && both_in_fifo;
+        assign wait_second_read = second_in_fifo && (!ren || empty) && (rptr == second_addr);
+        assign read_second = ren && (rdata == second_data) && !empty && (rptr == second_addr) && second_in_fifo;
+        
+        always@($global_clock) begin
+            // Refer to line 153 for why it's wrstn instead of rrstn
+            if(past_valid_glb && wrstn) begin
+                if($past(wait_first_read)) begin
+                    assert(wait_first_read || ($rose(rclk) && read_first));
+                end
+                if($past(read_first)) begin
+                    assert((!$rose(rclk) && read_first) || ($rose(rclk) && read_second) || wait_second_read);
+                end
+                if($past(wait_second_read)) begin
+                    assert(wait_second_read || ($rose(rclk) && read_second));
+                end
+            end
+        end*/
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
         /*logic [PTR_WIDTH-1:0] wptr_sync1, wptr_sync2, rptr_sync1, rptr_sync2;
 
         initial {wptr_sync1, wptr_sync2, rptr_sync1, rptr_sync2} = 0;

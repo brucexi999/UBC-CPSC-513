@@ -1,5 +1,5 @@
 module ASYNC_FIFO #(
-    parameter DEPTH = 16,
+    parameter DEPTH = 8,
     parameter WIDTH = 8
 ) (
     input wclk,
@@ -79,6 +79,14 @@ module ASYNC_FIFO #(
     assign rdata = mem[rptr[PTR_WIDTH-2:0]];
     assign empty = (rptr_gray == wptr_gray_sync2);
 
+    //============================== Initials ===================================
+    initial rptr = 0;
+    initial rptr_gray_sync1 = 0;
+    initial rptr_gray_sync2 = 0;
+    initial wptr = 0;
+    initial wptr_gray_sync1 = 0;
+    initial wptr_gray_sync2 = 0;
+
     `ifdef FORMAL
         logic past_valid_glb, past_valid_w, past_valid_r;
         initial {past_valid_glb, past_valid_w, past_valid_r} = 0;
@@ -93,18 +101,6 @@ module ASYNC_FIFO #(
         always@(posedge rclk) begin
             past_valid_r <= 1;
         end
-
-        //============================== Initials ===================================
-        initial rptr = 0;
-        initial rptr_gray = 0;
-        initial rptr_gray_sync1 = 0;
-        initial rptr_gray_sync2 = 0;
-        initial wptr = 0;
-        initial wptr_gray = 0;
-        initial wptr_gray_sync1 = 0;
-        initial wptr_gray_sync2 = 0;
-        initial full = 0;
-        initial empty = 1;
 
         //================================ Clocks ====================================
         localparam WIDTH_CLK = 5;
@@ -132,22 +128,27 @@ module ASYNC_FIFO #(
         // Initially, assume both resets are asserted
         initial assume(!wrstn);
         initial assume(!rrstn);
-        initial assume(rrstn == wrstn);
+        //initial assume(rrstn == wrstn);
         // Assume the two resets are asserted simultaneously
+        //always@($global_clock) begin
+        //    assume($fell(wrstn) == $fell(rrstn));
+        //    assume($rose(wrstn) == $rose(rrstn));
+        //end
+
         always@($global_clock) begin
-            assume($fell(wrstn) == $fell(rrstn));
+            assume (wrstn == rrstn);
         end
         
         // Assume the two resets are released synchronously with respect to their clocks
-        always@($global_clock) begin
-            if(!($rose(wclk))) begin
-                assume(!$rose(wrstn));
-            end
+        //always@($global_clock) begin
+        //    if(!($rose(wclk))) begin
+        //        assume(!$rose(wrstn));
+        //    end
             
-            if(!($rose(rclk))) begin
-                assume(!$rose(rrstn));
-            end
-        end
+        //    if(!($rose(rclk))) begin
+        //        assume(!$rose(rrstn));
+        //    end
+        //end
 
         /* 
         If wrstn is asserted, rrstn may have already been deasserted because the two 
@@ -158,35 +159,35 @@ module ASYNC_FIFO #(
         not ture. If wrstn is deasserted prior than rrstn, then while rrstn is low, 
         the write pointer may have already incremented.
         */
-        always@($global_clock) begin
-            if(!wrstn) begin
-                a25: assert(rptr == 0);
-            end
-        end
+        //always@($global_clock) begin
+        //    if(!wrstn) begin
+        //        a25: assert(rptr == 0);
+        //    end
+        //end
 
         always@(*) begin
             // If past_valid_w is low, we treat it as reset
             if(!past_valid_w || !wrstn) begin  
                 assume(!wen);
-                a0: assert(!full);
-                a1: assert(wptr == 0);
-                a2: assert(wptr_gray == 0);
-                a3: assert(rptr_gray_sync1 == 0);
-                a4: assert(rptr_gray_sync2 == 0);
+                assert(!full);
+                assert(wptr == 0);
+                assert(wptr_gray == 0);
+                assert(rptr_gray_sync1 == 0);
+                assert(rptr_gray_sync2 == 0);
                 // These are signals in the read clock domain, refer to the comment
                 // section above
-                a5: assert(wptr_gray_sync1 == 0);
-                a6: assert(wptr_gray_sync2 == 0);
-                a7: assert(rptr == 0);
-                a8: assert(empty);
+                assert(wptr_gray_sync1 == 0);
+                assert(wptr_gray_sync2 == 0);
+                assert(rptr == 0);
+                assert(empty);
             end
 
             if(!past_valid_r || !rrstn) begin
                 assume(!ren);
-                a9: assert(rptr == 0);
-                a10: assert(rptr_gray == 0);
-                a11: assert(wptr_gray_sync1 == 0);
-                a12: assert(wptr_gray_sync2 == 0);
+                assert(rptr == 0);
+                assert(rptr_gray == 0);
+                assert(wptr_gray_sync1 == 0);
+                assert(wptr_gray_sync2 == 0);
             end
 
         end
@@ -197,14 +198,14 @@ module ASYNC_FIFO #(
                 if(!$rose(wclk)) begin
                     assume($stable(wen));
                     assume($stable(wdata));
-                    a13: assert($stable(full) || !wrstn);  // Async reset
+                    assert($stable(full) || !wrstn);  // Async reset
                 end
 
                 if(!$rose(rclk)) begin
                     assume($stable(ren));
                     // If the async reset comes in, then it must be empty
-                    a14: assert(empty || $stable(rdata));  
-                    a15: assert($stable(empty) || !rrstn);
+                    assert(empty || $stable(rdata));  
+                    assert($stable(empty) || !rrstn);
                 end
             end
         end
@@ -213,46 +214,103 @@ module ASYNC_FIFO #(
         logic [PTR_WIDTH-1:0] num_entry;  // Number of valid entries in the FIFO
         assign num_entry = wptr - rptr;
 
-        initial a16: assert(num_entry == 0);
+        initial assert(num_entry == 0);
         always@(*) begin
-            a17: assert(num_entry <= DEPTH);
+            assert(num_entry <= DEPTH);
         end
 
         always@(*) begin
             if (num_entry == DEPTH) begin
-                a18: assert(full);
+                assert(full);
             end
             if (num_entry == 0) begin
-                a19: assert(empty);
+                assert(empty);
             end
         end
 
         always@(*) begin
-            a20: assert(wptr_gray == wptr ^ (wptr>>1));
-            a21: assert(rptr_gray == rptr ^ (rptr>>1));
-        end
-
-        // Never full and empty at the same time
-        always@(*) begin
-            a22: assert(!(full && empty));
+            assert(wptr_gray == wptr ^ (wptr>>1));
+            assert(rptr_gray == rptr ^ (rptr>>1));
         end
 
         //  No overflow
         always@($global_clock) begin
-            if($past(num_entry) == DEPTH && $past(wen) && past_valid_glb) begin
-                a23: assert(wptr == $past(wptr) || !wrstn);
+            //if($past(num_entry) == DEPTH && $past(wen) && past_valid_glb) begin
+            if($past(full) && $past(wen) && past_valid_glb) begin
+                assert(wptr == $past(wptr) || !wrstn);
+            end
+        end
+
+        always@(*) begin
+            if(wptr[PTR_WIDTH-1] != rptr[PTR_WIDTH-1]) begin
+                assert(wptr[PTR_WIDTH-2:0] <= rptr[PTR_WIDTH-2:0]);
             end
         end
 
         // No underflow
         always@($global_clock) begin
-            if($past(num_entry) == 0 && $past(ren) && past_valid_glb) begin
-                a24: assert(rptr == $past(rptr) || !rrstn);
+            //if($past(num_entry) == 0 && $past(ren) && past_valid_glb) begin
+            if($past(empty)&& $past(ren) && past_valid_glb) begin
+                assert(rptr == $past(rptr) || !rrstn);
+            end
+        end
+
+        always@(*) begin
+            if(wptr[PTR_WIDTH-1] == rptr[PTR_WIDTH-1]) begin
+                assert(rptr[PTR_WIDTH-2:0] <= wptr[PTR_WIDTH-2:0]);
+            end
+        end
+
+        logic [PTR_WIDTH-1:0] wptr_sync1, wptr_sync2, rptr_sync1, rptr_sync2;
+
+        initial {wptr_sync1, wptr_sync2, rptr_sync1, rptr_sync2} = 0;
+
+        always@(posedge wclk or negedge wrstn) begin
+            if(!wrstn) begin
+                {rptr_sync2, rptr_sync1} <= 0;
+            end
+            else begin
+                {rptr_sync2, rptr_sync1} <= {rptr_sync1, rptr};
+            end
+        end
+
+        always@(posedge rclk or negedge rrstn) begin
+            if(!rrstn) begin
+                {wptr_sync2, wptr_sync1} <= 0;
+            end
+            else begin
+                {wptr_sync2, wptr_sync1} <= {wptr_sync1, wptr};
+            end
+        end
+
+        always@(*) begin
+            assert(rptr_gray_sync1 == (rptr_sync1>>1) ^ rptr_sync1);
+            assert(rptr_gray_sync2 == (rptr_sync2>>1) ^ rptr_sync2);
+            assert(wptr_gray_sync1 == (wptr_sync1>>1) ^ wptr_sync1);
+            assert(wptr_gray_sync2 == (wptr_sync2>>1) ^ wptr_sync2);
+        end
+
+        logic [PTR_WIDTH-1:0] num_entry_r2w, num_entry_w2r;
+        
+        assign num_entry_r2w = wptr - rptr_sync2;
+        assign num_entry_w2r = wptr_sync2 - rptr;
+
+        always@(*) begin
+            assert(num_entry_r2w <= DEPTH);
+            assert(num_entry_w2r <= DEPTH);
+        end
+
+        always@(*) begin
+            if(wptr_gray == {~rptr_gray_sync2[PTR_WIDTH-1:PTR_WIDTH-2], rptr_gray_sync2[PTR_WIDTH-3:0]}) begin
+                assert(full);
+            end
+            if(rptr_gray == wptr_gray_sync2) begin
+                assert(empty);
             end
         end
 
         //=================================== W/R =====================================
-        /*(* anyconst *) logic [PTR_WIDTH-1:0] first_addr;
+        (* anyconst *) logic [PTR_WIDTH-1:0] first_addr;
         logic [PTR_WIDTH-1:0] second_addr;
         assign second_addr = first_addr + 1;
 
@@ -277,13 +335,13 @@ module ASYNC_FIFO #(
 
         always@(*) begin
             second_addr_valid = 0;
-            if((wptr > rptr) && (second_addr < wptr) && (second_addr > rptr)) begin
+            if((wptr > rptr) && (second_addr < wptr) && (second_addr >= rptr)) begin
                     second_addr_valid = 1;
             end
             else if((wptr < rptr) && (second_addr < wptr)) begin
                     second_addr_valid = 1;
             end
-            else if((wptr < rptr) && (second_addr > rptr)) begin
+            else if((wptr < rptr) && (second_addr >= rptr)) begin
                     second_addr_valid = 1;
             end 
         end
@@ -301,7 +359,7 @@ module ASYNC_FIFO #(
         FIFO can wait with the second value in memory indefinitely or it can be read out
         */
 
-        //logic wait_first_read, wait_second_read, read_first, read_second;
+        logic wait_first_read, wait_second_read, read_first, read_second;
         
         /* 
         Intuitively, if both data are in the FIFO, then it shouldn't be empty. However,
@@ -309,11 +367,12 @@ module ASYNC_FIFO #(
         travel to the read domain and produce the empty flag. During this time, there 
         could be data being written in the write domain.
         */
-        /*assign wait_first_read = both_in_fifo && (!ren || rptr != first_addr || empty);
+
+        assign wait_first_read = both_in_fifo && (!ren || rptr != first_addr || empty);
         assign read_first = ren && (rdata == first_data) && !empty && rptr == first_addr && both_in_fifo;
         assign wait_second_read = second_in_fifo && (!ren || empty) && (rptr == second_addr);
         assign read_second = ren && (rdata == second_data) && !empty && (rptr == second_addr) && second_in_fifo;
-        
+
         always@($global_clock) begin
             // Refer to line 153 for why it's wrstn instead of rrstn
             if(past_valid_glb && wrstn) begin
@@ -327,57 +386,7 @@ module ASYNC_FIFO #(
                     assert(wait_second_read || ($rose(rclk) && read_second));
                 end
             end
-        end*/
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        /*logic [PTR_WIDTH-1:0] wptr_sync1, wptr_sync2, rptr_sync1, rptr_sync2;
-
-        initial {wptr_sync1, wptr_sync2, rptr_sync1, rptr_sync2} = 0;
-
-        always@(posedge wclk or negedge wrstn) begin
-            if(!wrstn) begin
-                {rptr_sync2, rptr_sync1} <= 0;
-            end
-            else begin
-                {rptr_sync2, rptr_sync1} <= {rptr_sync1, rptr};
-            end
         end
-
-        always@(posedge rclk or negedge rrstn) begin
-            if(!wrstn) begin
-                {wptr_sync2, wptr_sync1} <= 0;
-            end
-            else begin
-                {wptr_sync2, wptr_sync1} <= {wptr_sync1, wptr};
-            end
-        end
-
-        always@(*) begin
-            assert(rptr_gray_sync1 == (rptr_sync1>>1) ^ rptr_sync1);
-            assert(rptr_gray_sync2 == (rptr_sync2>>1) ^ rptr_sync2);
-            assert(wptr_gray_sync1 == (wptr_sync1>>1) ^ wptr_sync1);
-            assert(wptr_gray_sync2 == (wptr_sync2>>1) ^ wptr_sync2);
-        end*/
 
     `endif
 

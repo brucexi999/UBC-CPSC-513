@@ -1,6 +1,6 @@
 module SYNC_FIFO #(
-    parameter integer DEPTH=16,
-    parameter integer WIDTH=8
+    parameter integer DEPTH = 16,
+    parameter integer WIDTH = 8
 ) (
     input clk,
     input rstn,
@@ -64,7 +64,7 @@ module SYNC_FIFO #(
     initial wptr = 0;
     initial rptr = 0;
 
-    /*`ifdef FORMAL
+    `ifdef FORMAL
         // Never full and empty at the same time
         always@(*)
             a0: assert(!(full && empty));
@@ -111,6 +111,6 @@ module SYNC_FIFO #(
         always@(posedge clk)
             if (!$past(rstn))
                 a9: assert(wptr == 0 && rptr == 0);
-    `endif*/
+    `endif
 
 endmodule

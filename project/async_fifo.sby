@@ -4,7 +4,6 @@ multiclock on
 
 [engines]
 smtbmc
-
 [script]
 read -formal async_fifo.sv
 prep -top ASYNC_FIFO
